@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import readurl
 
 class MechVib1d():
     def __init__(self):
@@ -43,15 +44,43 @@ class MechVib1d():
         force = amp * np.sin(2 * np.pi * freq * t)
         self.forcedata = np.array([t, force])
     
-    def plot_disp(self):
-        plt.plot(self.solution.t, self.solution.y[0])
-        plt.xlabel('Time [s]')
-        plt.ylabel('Displacement [m]')
+    def plot_solution(self):
+        fig, (ax0, ax1) = plt.subplots(2)
+        
+        ax0.plot(self.solution.t, self.solution.y[0])
+        ax0.set(xlabel='Time [s]', ylabel='Displacement [m]')
+
+        ax1.plot(self.forcedata[0], self.forcedata[1])
+        ax1.set(xlabel='Time [s]', ylabel='Force [N]')
+        
+        fig.tight_layout()
         plt.show()
+
+    def read_loading_from_url(self, url, type='seismic', separator=None):
+        lines = readurl.get_url_text(url).split('\n')
+    
+        if type == 'seismic':
+            x, y = [], []
+            baseacc_to_force = -self.mass * 9.81
+            for line in lines:
+                if line:  # False if string is empty
+                    vals = line.split(separator)
+                    x.append(float(vals[0]))
+                    y.append(baseacc_to_force * float(vals[1]))    
+            self.forcedata = np.array([x, y])
+            self.t_end = x[-1]
+        else:
+            raise NotImplementedError('Currently only seismic data supported.')
+
+    # TODO: To be implemented, plot this too
+    def get_spectrum():
+        pass
 
 if __name__ == '__main__':
     vib = MechVib1d()
-    vib.set_test_force()
+    # vib.set_test_force()
+    url = 'http://www.vibrationdata.com/elcentro_NS.dat'
+    vib.read_loading_from_url(url)
     vib.solve()
-    vib.plot_disp()
+    vib.plot_solution()
     
