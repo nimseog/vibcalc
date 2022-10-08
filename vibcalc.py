@@ -1,4 +1,3 @@
-from re import T
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
@@ -17,20 +16,28 @@ class MechVib1d():
         self.init_disp = 0
         self.init_vel = 0
         
-        self.forcedata = None  # Includes time
-        self.spectrum_force = None
-        self.spectrum_disp = None
+        self.forcedata = None
+        self.spectrum_force = {}
+        self.spectrum_disp = {}
 
         self.solution = None
+        self.acc = None
 
     def __motion_equation_derivatives(self, t, y, mass, damping, stiffn, forcefun):
         disp, velo = y[0], y[1]
         acc = (forcefun(t) - damping * velo - stiffn * disp) / float(mass)
         return np.array([velo, acc])
     
+    def calculate_acc(self):
+        disp = self.solution.y[0]
+        velo = self.solution.y[1]
+        t = self.solution.t
+        self.acc = (self.forcefun(t) - self.damping * velo - self.stiffn * disp) / float(self.mass)
+    
     def solve(self):
         self.solution = solve_ivp(self.__motion_equation_derivatives, [self.t_start, self.t_end], [self.init_disp, self.init_vel],
             t_eval=self.get_time_pnts(), args=[self.mass, self.damping, self.stiffn, self.forcefun])
+        self.calculate_acc()
         self.calculate_spectrum()
 
     def get_time_pnts(self):
@@ -50,19 +57,27 @@ class MechVib1d():
         self.forcedata = np.array([t, force])
     
     def plot_results(self, maxfreq=None):
-        fig, (ax0, ax1, ax2) = plt.subplots(3)
+        fig, axs = plt.subplots(3,3)
         
-        ax0.plot(self.solution.t, self.solution.y[0])
-        ax0.set(xlabel='Time [s]', ylabel='Displacement [m]')
+        axs[0, 1].plot(self.solution.t, self.solution.y[0])
+        axs[0, 1].set(xlabel='Time [s]', ylabel='Displacement [m]', title='Displacement response')
 
-        ax1.plot(self.forcedata[0], self.forcedata[1])
-        ax1.set(xlabel='Time [s]', ylabel='Force [N]')
+        axs[1, 1].plot(self.solution.t, self.solution.y[1])
+        axs[1, 1].set(xlabel='Time [s]', ylabel='Velocity [m/s]', title='Velocity response')
+
+        axs[2, 1].plot(self.solution.t, self.acc)
+        axs[2, 1].set(xlabel='Time [s]', ylabel='Acceleration [mm/s^2]', title='Acceleration response')
+
+        axs[0, 0].plot(self.forcedata[0], self.forcedata[1])
+        axs[0, 0].set(xlabel='Time [s]', ylabel='Force [N]', title='Input force')
         
-        ax2.plot(self.get_spectrum_freq('load'), abs(self.spectrum_force))
-        ax2.set(xlabel='Frequency [Hz]', ylabel='Force [N]')
+        axs[1, 0].plot(self.spectrum_force['x'], abs(self.spectrum_force['y']))
+        axs[1, 0].set(xlabel='Frequency [Hz]', ylabel='Force [N]', title='Spectrum of input force')
         if maxfreq:
-            ax2.set(xlim=[0, maxfreq])
+            axs[0, 2].set(xlim=[0, maxfreq])
 
+        fig.suptitle('MECHANICAL OSCILLATOR\nMass = %s kg, stiffness = %s N/m, damping = %s Ns/m'
+            % (self.mass, self.stiffn, self.damping))
         fig.tight_layout()
         plt.show()
 
@@ -82,24 +97,24 @@ class MechVib1d():
         else:
             raise NotImplementedError('Currently only seismic data supported.')
 
-    # TODO: To be implemented, plot this too
     def calculate_spectrum(self):
+        # TODO: Check correct scaling of FFT
+        
         disp = self.solution.y[0]
-        self.spectrum_disp = (2. / disp.size) * np.fft.rfft(disp)
+        n_pnts = disp.size
+        self.spectrum_disp['y'] = (2. / disp.size) * np.fft.rfft(disp)
+        self.spectrum_disp['x'] = np.fft.rfftfreq(n_pnts, self.dt)
 
+        force = self.forcedata[1]
         t = self.forcedata[0]
-        if not np.all(t[1:] - t[:-1] == t[1] - t[0]):
-            print('Warning: Force data possibly not equally spaced in time. Spectrum for force possibly unreliable.')
-        self.spectrum_force = (2. / disp.size) * np.fft.rfft(self.forcedata[1])
-
-    def get_spectrum_freq(self, type):
-        if type == 'kinematic':
-            dt = self.dt
-            n = self.get_time_pnts().size
-        elif type == 'load':
-            dt = self.forcedata[0][1] - self.forcedata[0][0]
-            n = self.forcedata[0].size
-        return np.fft.rfftfreq(n, dt)
+        dt = t[1] - t[0]
+        if not np.all(t[1:] - t[:-1] == dt):
+            t_new = np.linspace(t[0], t[-1], t.size)
+            force = np.interp(t, t_new, force)
+            t = t_new
+        n_pnts = force.size
+        self.spectrum_force['y'] = (2. / n_pnts) * np.fft.rfft(force)
+        self.spectrum_force['x'] = np.fft.rfftfreq(n_pnts, dt)
 
 if __name__ == '__main__':
     vib = MechVib1d()
