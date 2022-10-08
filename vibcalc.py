@@ -57,27 +57,30 @@ class MechVib1d():
         self.forcedata = np.array([t, force])
     
     def plot_results(self, maxfreq=None):
-        fig, axs = plt.subplots(3,3)
+        fig, axs = plt.subplots(3, 2)
         
-        axs[0, 1].plot(self.solution.t, self.solution.y[0])
-        axs[0, 1].set(xlabel='Time [s]', ylabel='Displacement [m]', title='Displacement response')
+        axs[0, 0].plot(self.solution.t, self.solution.y[0])
+        axs[0, 0].set(xlabel='Time [s]', ylabel='Displacement [m]', title='Displacement response')
 
-        axs[1, 1].plot(self.solution.t, self.solution.y[1])
-        axs[1, 1].set(xlabel='Time [s]', ylabel='Velocity [m/s]', title='Velocity response')
+        axs[1, 0].plot(self.solution.t, self.solution.y[1])
+        axs[1, 0].set(xlabel='Time [s]', ylabel='Velocity [m/s]', title='Velocity response')
 
-        axs[2, 1].plot(self.solution.t, self.acc)
-        axs[2, 1].set(xlabel='Time [s]', ylabel='Acceleration [mm/s^2]', title='Acceleration response')
+        axs[2, 0].plot(self.solution.t, self.acc)
+        axs[2, 0].set(xlabel='Time [s]', ylabel='Acceleration [mm/s^2]', title='Acceleration response')
 
-        axs[0, 0].plot(self.forcedata[0], self.forcedata[1])
-        axs[0, 0].set(xlabel='Time [s]', ylabel='Force [N]', title='Input force')
+        axs[0, 1].plot(self.forcedata[0], self.forcedata[1])
+        axs[0, 1].set(xlabel='Time [s]', ylabel='Force [N]', title='Input force')
         
-        axs[1, 0].plot(self.spectrum_force['x'], abs(self.spectrum_force['y']))
-        axs[1, 0].set(xlabel='Frequency [Hz]', ylabel='Force [N]', title='Spectrum of input force')
+        axs[1, 1].plot(self.spectrum_force['x'], abs(self.spectrum_force['y']))
+        axs[1, 1].set(xlabel='Frequency [Hz]', ylabel='Force [N]', title='Spectrum of input force')
         if maxfreq:
-            axs[0, 2].set(xlim=[0, maxfreq])
+            axs[1, 1].set(xlim=[0, maxfreq])
+        
+        axs[2, 1].axis('off')
 
-        fig.suptitle('MECHANICAL OSCILLATOR\nMass = %s kg, stiffness = %s N/m, damping = %s Ns/m'
-            % (self.mass, self.stiffn, self.damping))
+        peakdisp, t_peakdisp = self.peakdisp() 
+        fig.suptitle('MECHANICAL OSCILLATOR\nMass = %s kg, stiffness = %s N/m, damping = %s Ns/m\n'
+            'Peak displacement: %.3f m @ %.3f s' % (self.mass, self.stiffn, self.damping, peakdisp, t_peakdisp))
         fig.tight_layout()
         plt.show()
 
@@ -115,6 +118,12 @@ class MechVib1d():
         n_pnts = force.size
         self.spectrum_force['y'] = (2. / n_pnts) * np.fft.rfft(force)
         self.spectrum_force['x'] = np.fft.rfftfreq(n_pnts, dt)
+
+    def peakdisp(self):
+        i_peakdisp = np.argmax(abs(self.solution.y[0]))
+        peakdisp = self.solution.y[0][i_peakdisp]
+        t_peakdisp = self.solution.t[i_peakdisp]
+        return peakdisp, t_peakdisp
 
 if __name__ == '__main__':
     vib = MechVib1d()
